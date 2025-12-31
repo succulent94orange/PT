@@ -86,7 +86,7 @@ class MenuScreen(Screen):
         self.manager.current = 'loop30'
 
 # ==========================================
-# SCREEN 2: AIR BIKE TIMER (Standard)
+# SCREEN 2: AIR BIKE TIMER (UPDATED)
 # ==========================================
 class AirBikeScreen(Screen):
     def __init__(self, **kwargs):
@@ -108,7 +108,7 @@ class AirBikeScreen(Screen):
         btn_back.bind(on_press=self.go_back)
 
         self.lbl_status = Label(text="7-4-2-1-1 INTERVALS", font_size='35sp', bold=True, size_hint=(1, 0.15))
-        self.lbl_info = Label(text="Tap Start", font_size='20sp', size_hint=(1, 0.1))
+        self.lbl_info = Label(text="Tap Start", font_size='25sp', size_hint=(1, 0.1), color=(0.9, 0.9, 0.9, 1))
         self.lbl_timer = Label(text="18:20", font_size='100sp', bold=True, size_hint=(1, 0.4))
 
         controls = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.25))
@@ -133,22 +133,32 @@ class AirBikeScreen(Screen):
     def _build_routine(self):
         r = []
         r.append(("READY", 5, "GET READY"))
+        
+        # Set 1: 7 Reps
         for i in range(1, 8):
-            lbl = f"SET 1: REP {i}/7"
+            lbl = f"SET 1 / 5   |   REP {i} / 7"
             r.append(("SPRINT", 10, lbl))
             r.append(("REST", 30, lbl))
+            
+        # Set 2: 4 Reps
         for i in range(1, 5):
-            lbl = f"SET 2: REP {i}/4"
+            lbl = f"SET 2 / 5   |   REP {i} / 4"
             r.append(("SPRINT", 20, lbl))
             r.append(("REST", 60, lbl))
+            
+        # Set 3: 2 Reps
         for i in range(1, 3):
-            lbl = f"SET 3: REP {i}/2"
+            lbl = f"SET 3 / 5   |   REP {i} / 2"
             r.append(("SPRINT", 30, lbl))
             r.append(("REST", 90, lbl))
-        lbl = "SET 4: REP 1/1"
+            
+        # Set 4: 1 Rep
+        lbl = "SET 4 / 5   |   REP 1 / 1"
         r.append(("SPRINT", 60, lbl))
         r.append(("REST", 180, lbl))
-        lbl = "SET 5: FINAL"
+        
+        # Set 5: Final
+        lbl = "SET 5 / 5   |   FINAL"
         r.append(("SPRINT", 20, lbl))
         r.append(("DONE", 0, "COMPLETE"))
         return r
@@ -180,15 +190,18 @@ class AirBikeScreen(Screen):
         step_type, duration, info_text = self.routine[self.current_step_index]
         self.time_remaining = duration
         self.lbl_info.text = info_text
+        
         if step_type == "READY":
             self.bg_color.rgba = COLOR_MENU
             self.lbl_status.text = "GET READY"
         elif step_type == "SPRINT":
             self.bg_color.rgba = COLOR_SPRINT
-            self.lbl_status.text = "SPRINT!"
+            # Shows duration in title: SPRINT (10s)
+            self.lbl_status.text = f"SPRINT ({duration}s)"
         elif step_type == "REST":
             self.bg_color.rgba = COLOR_REST
-            self.lbl_status.text = "REST..."
+            # Shows duration in title: REST (30s)
+            self.lbl_status.text = f"REST ({duration}s)"
         elif step_type == "DONE":
             self.bg_color.rgba = COLOR_DONE
             self.lbl_status.text = "COMPLETE"
@@ -255,17 +268,26 @@ class Loop30Screen(Screen):
         btn_back.bind(on_press=self.go_back)
 
         # 2. Settings Row (Inputs)
-        settings_layout = BoxLayout(orientation='horizontal', spacing=10, size_hint=(1, 0.15))
+        settings_layout = BoxLayout(orientation='horizontal', spacing=20, size_hint=(1, 0.15))
         
-        # Work Input
-        settings_layout.add_widget(Label(text="Work (sec):", font_size='20sp'))
-        self.input_work = TextInput(text=str(self.default_work), input_filter='int', multiline=False, font_size='30sp', halign='center')
-        settings_layout.add_widget(self.input_work)
+        # Work Setting
+        work_box = BoxLayout(orientation='vertical', spacing=5)
+        lbl_work = Label(text="Work (sec):", font_size='20sp', halign='center', valign='bottom')
+        lbl_work.bind(size=lbl_work.setter('text_size'))
+        self.input_work = TextInput(text=str(self.default_work), input_filter='int', multiline=False, font_size='30sp', halign='center', padding_y=(10, 10))
+        work_box.add_widget(lbl_work)
+        work_box.add_widget(self.input_work)
         
-        # Rest Input
-        settings_layout.add_widget(Label(text="Rest (sec):", font_size='20sp'))
-        self.input_rest = TextInput(text=str(self.default_rest), input_filter='int', multiline=False, font_size='30sp', halign='center')
-        settings_layout.add_widget(self.input_rest)
+        # Rest Setting
+        rest_box = BoxLayout(orientation='vertical', spacing=5)
+        lbl_rest = Label(text="Rest (sec):", font_size='20sp', halign='center', valign='bottom')
+        lbl_rest.bind(size=lbl_rest.setter('text_size'))
+        self.input_rest = TextInput(text=str(self.default_rest), input_filter='int', multiline=False, font_size='30sp', halign='center', padding_y=(10, 10))
+        rest_box.add_widget(lbl_rest)
+        rest_box.add_widget(self.input_rest)
+
+        settings_layout.add_widget(work_box)
+        settings_layout.add_widget(rest_box)
 
         # 3. Status and Timer
         self.lbl_status = Label(text="LOOP READY", font_size='40sp', bold=True, size_hint=(1, 0.2))
@@ -298,17 +320,14 @@ class Loop30Screen(Screen):
         self.manager.current = 'menu'
 
     def get_user_settings(self):
-        # Safely get numbers from text boxes
         try:
             w = int(self.input_work.text)
         except:
-            w = 30 # Default if empty/error
-            
+            w = 30
         try:
             r = int(self.input_rest.text)
         except:
-            r = 2 # Default if empty/error
-            
+            r = 2
         return w, r
 
     def toggle_timer(self, instance):
@@ -322,10 +341,8 @@ class Loop30Screen(Screen):
         self.btn_main.text = "STOP"
         self.btn_main.background_color = COLOR_REST
         
-        # Grab current settings
         w, r = self.get_user_settings()
         
-        # Always start on WORK
         self.phase = "WORK"
         self.time_remaining = w
         self.update_visuals()
@@ -351,10 +368,7 @@ class Loop30Screen(Screen):
         self.time_remaining -= 1
         
         if self.time_remaining < 0:
-            # Grab latest settings in case user changed them while running
             w, r = self.get_user_settings()
-            
-            # SWITCH PHASE
             if self.phase == "WORK":
                 self.phase = "BREAK"
                 self.time_remaining = r
@@ -374,7 +388,6 @@ class Loop30Screen(Screen):
             self.bg_color.rgba = COLOR_REST
             self.lbl_status.text = "RESET..."
 
-        # Format Time
         mins, secs = divmod(self.time_remaining, 60)
         self.lbl_timer.text = f"{mins:02d}:{secs:02d}"
 
