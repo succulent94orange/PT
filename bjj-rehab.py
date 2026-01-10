@@ -3,6 +3,9 @@ import os
 import time
 import math
 import re
+
+# --- KIVY CORE ---
+import kivy
 from kivy.app import App
 from kivy.uix.screenmanager import ScreenManager, Screen, SlideTransition
 from kivy.uix.boxlayout import BoxLayout
@@ -15,34 +18,27 @@ from kivy.core.window import Window
 from kivy.metrics import dp
 from kivy.utils import get_color_from_hex, platform
 from kivy.clock import Clock
-from kivy.graphics import Color, Rectangle
+from kivy.graphics import Color, Rectangle, Line
 from kivy.core.audio import SoundLoader
+from kivy.animation import Animation
 
 # ==========================================
-# 1. THEME & COLORS
+# 1. THEME & COLORS (NEO-BRUTALIST NATURE)
 # ==========================================
-C_BG      = "#000000"
-C_BG_SEC  = "#121212"
-C_CARD    = "#1E1E1E"
-C_CARD_HIT = "#333333"
-C_PRIMARY = "#A020F0"
-C_SEC     = "#00E5FF"
-C_TEXT    = "#FFFFFF"
-C_SUB     = "#AAAAAA"
-C_ALERT   = "#FF5252"
+C_BG_MAIN   = "#050505"      # OLED Void
+C_BG_SEC    = "#0F120F"      # Nature Dark Green/Black
+C_CARD      = "#181A18"      # Card Grey-Green
+C_BORDER    = "#2D332D"      # Muted Moss
+C_PRIMARY   = "#CCFF00"      # ACID LIME (Accents)
+C_SECONDARY = "#9D4EDD"      # ELECTRIC PURPLE
+C_TEXT      = "#FFFFFF"      # Pure White
+C_SUB       = "#889988"      # Sage
+C_ALERT     = "#FF3333"      # Neo Red
 
-COLOR_MENU_HEX   = '#2C3E50'
-COLOR_SPRINT_HEX = '#27AE60'
-COLOR_REST_HEX   = '#C0392B'
-COLOR_DONE_HEX   = '#F39C12'
-COLOR_BTN_BLUE_HEX = '#2980B9'
-
-COLOR_MENU   = get_color_from_hex(COLOR_MENU_HEX)
-COLOR_SPRINT = get_color_from_hex(COLOR_SPRINT_HEX)
-COLOR_REST   = get_color_from_hex(COLOR_REST_HEX)
-COLOR_DONE   = get_color_from_hex(COLOR_DONE_HEX)
-COLOR_BTN_BLUE = get_color_from_hex(COLOR_BTN_BLUE_HEX)
-COLOR_CTRL_BG = (0, 0, 0, 0.6)
+COLOR_SPRINT_HEX = '#00FF41'
+COLOR_REST_HEX   = '#FF0055'
+COLOR_DONE_HEX   = '#FFD700'
+COLOR_BTN_BLUE_HEX = '#00CCFF'
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mma_profile_kivy.json")
 
@@ -53,7 +49,7 @@ class SoundManager:
     def __init__(self):
         self.sounds = {}
         try:
-            paths = ['/storage/emulated/0/Download/', './'] 
+            paths = ['/storage/emulated/0/Download/', './']
             for p in paths:
                 beep = os.path.join(p, 'beep.wav')
                 buzzer = os.path.join(p, 'buzzer.wav')
@@ -95,13 +91,12 @@ def save_data():
     try:
         with open(DATA_FILE, 'w') as f:
             json.dump(user_profile, f)
-        print("Data Saved")
         return True
     except: return False
 
 def parse_duration(text):
-    if "Air Bike" in text or "Assault Bike" in text:
-        return "AIRBIKE"
+    if "Air Bike" in text or "Assault Bike" in text: return "AIRBIKE"
+    if "Side Plank" in text: return "SIDEPLANK"
     text = text.lower()
     match = re.search(r'\((\d+)\s*(m|min|mins|sec|s)\)', text)
     if match:
@@ -112,22 +107,19 @@ def parse_duration(text):
     return None
 
 # ==========================================
-# 3. EXERCISE LOGIC
+# 3. EXERCISE DATABASE
 # ==========================================
 exercise_db = {
     "Bird Dog": {"desc": "Hands/knees. Brace core. Extend opposite limbs.", "cue": "Punch heel back. Keep spine stiff."},
-    "Side Plank": {"desc": "Lie on side. Lift hips. Hold.", "cue": "Push floor away. Concave side focus."},
-    "Pallof Press": {"desc": "Kneel on one knee. Press band forward.", "cue": "Kneel on 'Tight Right' knee."},
+    "Side Plank": {"desc": "Lie on side. Lift hips. Hold.", "cue": "Focus on breathing. Complete both sides."},
+    "Pallof Press": {"desc": "Kneel on one knee. Press band forward.", "cue": "Don't let the band pull you sideways."},
     "Glute Bridge": {"desc": "Back on floor. Lift hips.", "cue": "Squeeze glutes BEFORE lifting."},
     "Cat-Cow": {"desc": "Arch/Round spine slowly.", "cue": "Move one vertebrae at a time."},
-    "90/90 Hip Flow": {"desc": "Sit with legs 90-deg. Lean forward/back.", "cue": "Focus on Right Hip restriction."},
-    "Adductor Rock Back": {"desc": "One leg out to side. Rock back.", "cue": "ESSENTIAL before BJJ."},
-    "Couch Stretch": {"desc": "Knee near wall. Squeeze glute.", "cue": "Don't arch back. 30s each."},
-    "Malasana Squat": {"desc": "Deep squat. Breathe.", "cue": "Visualize pelvic floor dropping."},
-    "Relaxation Breathing": {
-        "desc": "1. Lie on your back, knees bent. Hand on belly.\n2. Inhale DEEP expanding BELLY (not chest).\n3. Visualize pelvic floor bulging downward (like pushing out urine gently).\n4. Exhale passively. Do NOT push hard.",
-        "cue": "Down-regulates pelvic tone. Essential for recovery."
-    },
+    "90/90 Hip Flow": {"desc": "Sit with legs 90-deg. Lean forward/back.", "cue": "Focus on tight hip restrictions."},
+    "Adductor Rock Back": {"desc": "One leg out to side. Rock back.", "cue": "Deep stretch in groin/inner thigh."},
+    "Couch Stretch": {"desc": "Knee near wall. Squeeze glute.", "cue": "Don't arch back. 30s each side."},
+    "Malasana Squat": {"desc": "Deep squat. Breathe.", "cue": "Visualize pelvic floor dropping/relaxing."},
+    "Relaxation Breathing": {"desc": "1. Lie on back. Hand on belly.\n2. Inhale DEEP expanding BELLY.\n3. Visualize floor bulging down.\n4. Exhale passively.", "cue": "Down-regulates pelvic tone."},
     "Hack Squat": {"desc": "Feet shoulder width. Lower.", "cue": "Limit depth if hip clicks."},
     "Box Jumps": {"desc": "Explosive jump. STEP DOWN.", "cue": "Land soft. Protect pelvic floor."},
     "Trap Bar Farmers Walk": {"desc": "Lift bar. Walk short steps.", "cue": "Stay vertical. Targets QL."},
@@ -142,8 +134,10 @@ exercise_db = {
     "Split Squat": {"desc": "Lunge stance. Drop knee.", "cue": "Use plate under heel if hip clicks."},
     "Lower Body Warm-Up": {"desc": "10 Squats + 5 Lunges.", "cue": "Open hips before walking on mats."},
     "Air Bike Protocol": {"desc": "20-minute interval routine.", "cue": "Use the integrated timer."},
-    "Assault Bike Sprint": {"desc": "Max effort sprint.", "cue": "Do cool-down immediately after."},
-    "Plank": {"desc": "Hold body straight.", "cue": "Squeeze glutes."}
+    "Static Plank": {"desc": "Hold body straight.", "cue": "Squeeze glutes."},
+    "Push-Ups": {"desc": "Standard push-up. Chest to floor.", "cue": "Keep core tight."},
+    "Swiss Ball Bridge": {"desc": "Heels on ball. Lift hips. Hold.", "cue": "Static hold."},
+    "Clam Shells": {"desc": "Lie on side, knees bent. Lift top knee.", "cue": "Squeeze glute medius. 15 per side."}
 }
 
 def get_weight(exercise):
@@ -156,765 +150,394 @@ def get_weight(exercise):
     except: return ""
 
 def get_workout(day):
+    w = get_weight
     if day == "Monday":
-        return ["WARMUP", "Cat-Cow (30 reps)", "Glute Bridge (2 sets x 15 reps)", 
-                "SUPERSET A", f"Hack Squat (3 sets x 8 reps) {get_weight('Hack Squat')}", "Box Jumps (3 sets x 5 reps)",
-                "SUPERSET B", f"Trap Bar Farmers Walk (3 sets x 40 yds) {get_weight('Trap Bar Farmers Walk')}", "Air Bike Protocol (See Timer)",
-                "FINISHER", f"Seated Leg Curl (3 sets x 15 reps) {get_weight('Seated Leg Curl')}", "COOL DOWN", "90/90 Hip Flow (2 mins)"]
+        return ["MORNING ROUTINE", "Push-Ups (30 reps)", "Side Plank (1 min)", "Static Plank (1 min)", "Swiss Ball Bridge (1 min)", "Clam Shells (2 sets x 15/side)",
+                "WARMUP", "Cat-Cow (30 reps)", "Glute Bridge (2x15)",
+                "SUPERSET A", f"Hack Squat (3x8) {w('Hack Squat')}", "Box Jumps (3x5)",
+                "SUPERSET B", f"Trap Bar Farmers Walk (3x40yds) {w('Trap Bar Farmers Walk')}", "Air Bike Protocol (See Timer)",
+                "FINISHER", f"Seated Leg Curl (3x15) {w('Seated Leg Curl')}", "COOL DOWN", "90/90 Hip Flow (2 mins)"]
     elif day == "Wednesday":
-        return ["WARMUP", "Pallof Press (3 sets x 10/side)", "Side Plank (3 sets x 60s/side)",
-                "SUPERSET A", f"Dumbbell Bench Press (3 sets x 10 reps) {get_weight('Dumbbell Bench Press')}", f"Cable Row (3 sets x 12 reps) {get_weight('Cable Row')}",
-                "SUPERSET B", f"Tricep Pushdowns (3 sets x 15 reps) {get_weight('Tricep Pushdowns')}", f"Cable Face Pulls (3 sets x 15 reps) {get_weight('Cable Face Pulls')}",
+        return ["MORNING ROUTINE", "Push-Ups (30 reps)", "Side Plank (1 min)", "Static Plank (1 min)", "Swiss Ball Bridge (1 min)", "Clam Shells (2 sets x 15/side)",
+                "WARMUP", "Pallof Press (3x10/side)",
+                "SUPERSET A", f"Dumbbell Bench Press (3x10) {w('Dumbbell Bench Press')}", f"Cable Row (3x12) {w('Cable Row')}",
+                "SUPERSET B", f"Tricep Pushdowns (3x15) {w('Tricep Pushdowns')}", f"Cable Face Pulls (3x15) {w('Cable Face Pulls')}",
                 "CARDIO", "Air Bike Protocol (See Timer)"]
     elif day == "Friday":
-        return ["WARMUP", "Bird Dog (3 sets x 10/side)", "Split Squat BW (2 sets x 5/side)",
-                "CIRCUIT (3 Rounds)", f"1. Unilateral Leg Press (10 reps/side) {get_weight('Unilateral Leg Press')}", f"2. Cable Woodchoppers (12 reps/side) {get_weight('Cable Woodchoppers')}",
-                f"3. Leg Extension (15 reps) {get_weight('Leg Extension')}", "4. Plank (1 min)", "COOL DOWN", "Couch Stretch (3 sets x 30s/side)"]
+        return ["MORNING ROUTINE", "Push-Ups (30 reps)", "Side Plank (1 min)", "Static Plank (1 min)", "Swiss Ball Bridge (1 min)", "Clam Shells (2 sets x 15/side)",
+                "WARMUP", "Bird Dog (3x10/side)", "Split Squat BW (2x5/side)",
+                "CIRCUIT", f"1. Unilateral Leg Press (10/side) {w('Unilateral Leg Press')}", f"2. Cable Woodchoppers (12/side) {w('Cable Woodchoppers')}",
+                f"3. Leg Extension (15 reps) {w('Leg Extension')}", "4. Plank (1 min)", "COOL DOWN", "Couch Stretch (3x30s/side)"]
     elif day in ["Tuesday", "Thursday", "Saturday"]:
         return ["PRE-COMBAT", "Lower Body Warm-Up (1 Round)", "Adductor Rock Back (1 min)", "ACTIVITY", "BJJ / Kickboxing Class", "POST-COMBAT", "Relaxation Breathing (5 mins)", "Malasana Squat (2 mins)"]
     return ["Active Recovery", "Walk 45 Mins", "Meal Prep"]
 
 # ==========================================
-# 4. KIVY UI COMPONENTS
+# 4. NEO-BRUTALIST UI COMPONENTS
 # ==========================================
 
 class SectionHeader(Label):
     def __init__(self, text, **kwargs):
-        super().__init__(text=text, **kwargs)
-        self.font_size = dp(14)
-        self.color = get_color_from_hex(C_SEC)
+        super().__init__(text=text.upper(), **kwargs)
+        self.font_size = dp(12)
+        self.color = get_color_from_hex(C_PRIMARY)
         self.bold = True
         self.size_hint_y = None
         self.height = dp(40)
-        self.text_size = (Window.width - dp(30), None)
+        self.text_size = (Window.width - dp(40), None)
         self.halign = 'left'
-        self.valign = 'middle' # Center vertically
+        self.valign = 'bottom'
+        with self.canvas.before:
+            Color(*get_color_from_hex(C_PRIMARY))
+            self.line_instr = Rectangle(pos=self.pos, size=(dp(25), dp(2)))
+        self.bind(pos=self.update_ui, size=self.update_ui)
+    def update_ui(self, *args):
+        self.line_instr.pos = (self.x + dp(20), self.y + dp(5))
 
-class SmartCard(BoxLayout):
-    def __init__(self, command=None, bg_color=get_color_from_hex(C_CARD), **kwargs):
+class NeoCard(BoxLayout):
+    def __init__(self, command=None, bg_color=get_color_from_hex(C_CARD), border_color=get_color_from_hex(C_BORDER), **kwargs):
         super().__init__(**kwargs)
         self.command = command
         self.orientation = 'horizontal'
-        self.padding = dp(15) # Increased padding
+        self.padding = dp(15)
         self.spacing = dp(10)
         self.size_hint_y = None
-        self.height = dp(90) # Taller cards for better spacing
-        self.bg_color = bg_color
-        self.default_color = bg_color
-        self.hit_color = get_color_from_hex(C_CARD + "AA")
+        self.height = dp(90)
+        self.bg_val = bg_color
         self.press_pos = None
-
         with self.canvas.before:
-            self.rect_color = Color(*self.bg_color)
+            Color(0, 0, 0, 1) # Shadow
+            self.shadow = Rectangle(pos=(self.x + dp(4), self.y - dp(4)), size=self.size)
+            self.rect_color = Color(*self.bg_val)
             self.rect = Rectangle(pos=self.pos, size=self.size)
-        self.bind(pos=self.update_rect, size=self.update_rect)
-
-    def update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
-
+            Color(*border_color)
+            self.border_instr = Line(rectangle=(self.x, self.y, self.width, self.height), width=1.5)
+        self.bind(pos=self.update_ui, size=self.update_ui)
+    def update_ui(self, *args):
+        self.rect.pos = self.pos; self.rect.size = self.size
+        self.shadow.pos = (self.x + dp(4), self.y - dp(4)); self.shadow.size = self.size
+        self.border_instr.rectangle = (self.x, self.y, self.width, self.height)
     def on_touch_down(self, touch):
         if self.collide_point(*touch.pos):
             self.press_pos = touch.pos
-            self.rect_color.rgba = self.hit_color
+            self.rect_color.rgba = get_color_from_hex("#252525")
+            self.rect.pos = (self.x + dp(2), self.y - dp(2))
             return super().on_touch_down(touch)
-        return False
-
     def on_touch_up(self, touch):
         if self.collide_point(*touch.pos) and self.press_pos:
-            dist = math.hypot(touch.x - self.press_pos[0], touch.y - self.press_pos[1])
-            if dist < dp(20): 
-                # Check children first
+            if math.hypot(touch.x - self.press_pos[0], touch.y - self.press_pos[1]) < dp(20):
                 for child in self.walk():
                     if isinstance(child, Button) and child.collide_point(*touch.pos):
-                        self.rect_color.rgba = self.default_color
-                        return super().on_touch_up(touch)
-                
+                        self.reset_vis(); return super().on_touch_up(touch)
                 if self.command: self.command()
-        
-        self.rect_color.rgba = self.default_color
-        self.press_pos = None
+        self.reset_vis()
         return super().on_touch_up(touch)
+    def reset_vis(self):
+        self.rect_color.rgba = self.bg_val; self.rect.pos = self.pos; self.press_pos = None
 
-class TouchScroll(ScrollView):
+class NeoButton(Button):
     def __init__(self, **kwargs):
+        bg_hex = kwargs.pop('background_color_hex', C_CARD)
+        fg_hex = kwargs.pop('color_hex', C_TEXT)
         super().__init__(**kwargs)
-        self.scroll_type = ['bars', 'content']
-        self.bar_width = dp(4)
+        self.background_normal = ''; self.background_down = ''; self.background_color = (0,0,0,0)
+        self.bg_val = get_color_from_hex(bg_hex)
+        self.color = get_color_from_hex(fg_hex)
+        self.bold = True
+        with self.canvas.before:
+            Color(0, 0, 0, 1) # Shadow
+            self.shadow = Rectangle(pos=(self.x+dp(3), self.y-dp(3)), size=self.size)
+            self.rect_c = Color(*self.bg_val)
+            self.rect = Rectangle(pos=self.pos, size=self.size)
+            Color(*get_color_from_hex(C_BORDER))
+            self.border_instr = Line(rectangle=(self.x, self.y, self.width, self.height), width=1.2)
+        self.bind(pos=self.update_ui, size=self.update_ui, state=self.on_state)
+    def update_ui(self, *args):
+        self.rect.pos = self.pos; self.rect.size = self.size
+        self.shadow.pos = (self.x+dp(3), self.y-dp(3)); self.shadow.size = self.size
+        self.border_instr.rectangle = (self.x, self.y, self.width, self.height)
+    def on_state(self, instance, value):
+        if value == 'down': self.rect.pos = (self.x+dp(2), self.y-dp(2))
+        else: self.rect.pos = self.pos
 
 # ==========================================
-# 5. GESTURE & SCREENS
+# 5. SCREENS & NAVIGATION
 # ==========================================
 
 class SwipeManager(ScreenManager):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.touch_start_x = 0
-        self.last_exit_attempt = 0
-        self.toast_label = None
-
-    def on_touch_down(self, touch):
-        self.touch_start_x = touch.x
-        return super().on_touch_down(touch)
-
+        self.last_exit = 0
+    def on_touch_down(self, touch): self.touch_start_x = touch.x; return super().on_touch_down(touch)
     def on_touch_up(self, touch):
         dx = touch.x - self.touch_start_x
         if dx > Window.width * 0.25 and abs(touch.dy) < dp(50):
-            self.handle_back_gesture()
+            if self.current != 'home': self.transition = SlideTransition(direction='right'); self.current = 'home'
+            else:
+                if time.time() - self.last_exit < 2.0: App.get_running_app().stop()
+                else: self.last_exit = time.time()
         return super().on_touch_up(touch)
-
-    def handle_back_gesture(self):
-        try:
-            current = self.current
-            if current == 'home':
-                now = time.time()
-                if now - self.last_exit_attempt < 2.0:
-                    self.exit_app()
-                else:
-                    self.show_toast("Swipe again to exit")
-                    self.last_exit_attempt = now
-            elif current != 'home':
-                self.transition = SlideTransition(direction='right')
-                self.current = 'home'
-        except: pass
-
-    def show_toast(self, text):
-        if not self.toast_label:
-            self.toast_label = Label(text=text, size_hint=(None, None), size=(dp(200), dp(50)),
-                                     pos_hint={'center_x': 0.5, 'y': 0.1}, color=get_color_from_hex(C_TEXT))
-            with self.toast_label.canvas.before:
-                Color(0.2, 0.2, 0.2, 0.9)
-                self.rect = Rectangle(size=self.toast_label.size, pos=self.toast_label.pos)
-            self.toast_label.bind(pos=self.update_rect, size=self.update_rect)
-            Window.add_widget(self.toast_label)
-            Clock.schedule_once(self.remove_toast, 2)
-            
-    def update_rect(self, instance, value):
-        self.rect.pos = instance.pos
-        self.rect.size = instance.size
-
-    def remove_toast(self, dt):
-        if self.toast_label:
-            Window.remove_widget(self.toast_label)
-            self.toast_label = None
-
-    def exit_app(self):
-        save_data()
-        App.get_running_app().stop()
 
 class HomeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
-        
-        # Header
-        self.header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(5), spacing=dp(5))
-        btn_prev = Button(text="<", size_hint_x=None, width=dp(50), background_normal='', background_color=get_color_from_hex(C_CARD))
+        with self.canvas.before:
+            Color(*get_color_from_hex(C_BG_MAIN)); Rectangle(pos=self.pos, size=self.size)
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10), spacing=dp(10))
+        btn_prev = NeoButton(text="<", size_hint_x=None, width=dp(50), background_color_hex=C_CARD)
         btn_prev.bind(on_release=self.prev_week)
-        self.lbl_week = Label(text=f"WEEK {user_profile['current_week']}", font_size=dp(20), bold=True, color=get_color_from_hex(C_PRIMARY))
-        btn_next = Button(text=">", size_hint_x=None, width=dp(50), background_normal='', background_color=get_color_from_hex(C_CARD))
+        self.lbl_week = Label(text="WEEK 1", font_size=dp(24), bold=True, color=get_color_from_hex(C_PRIMARY))
+        btn_next = NeoButton(text=">", size_hint_x=None, width=dp(50), background_color_hex=C_CARD)
         btn_next.bind(on_release=self.next_week)
-        btn_edit = Button(text="PROFILE", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_edit.bind(on_release=self.go_edit)
-        
-        self.header.add_widget(btn_prev)
-        self.header.add_widget(self.lbl_week)
-        self.header.add_widget(btn_next)
-        self.header.add_widget(btn_edit)
-        self.layout.add_widget(self.header)
-        
-        # Scroll List
-        self.scroll = TouchScroll()
-        self.list_layout = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
-        self.list_layout.bind(minimum_height=self.list_layout.setter('height'))
-        
-        days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-        subs = ["Lifting & Rehab", "Combat & Recovery", "Lifting & Rehab", "Combat & Recovery", "Lifting & Rehab", "Combat & Recovery", "Rest"]
-        
-        for i, day in enumerate(days):
-            card = SmartCard(command=lambda d=day: self.go_day(d))
-            # Text Content
-            txt_box = BoxLayout(orientation='vertical', size_hint_x=0.8) # Give text more room
-            txt_box.add_widget(Label(text=day, font_size=dp(20), bold=True, halign='left', valign='bottom', color=get_color_from_hex(C_TEXT), size_hint_y=0.6, text_size=(Window.width*0.7, None)))
-            txt_box.add_widget(Label(text=subs[i], font_size=dp(14), color=get_color_from_hex(C_SUB), size_hint_y=0.4, halign='left', valign='top', text_size=(Window.width*0.7, None)))
-            
-            card.add_widget(txt_box)
-            # Arrow
-            card.add_widget(Label(text=">", font_size=dp(24), bold=True, size_hint_x=0.2, color=get_color_from_hex(C_SEC), halign='center', valign='middle'))
-            self.list_layout.add_widget(card)
-            
-        # Timers
-        self.list_layout.add_widget(SectionHeader(text="TIMERS"))
-        
-        btn_ab = SmartCard(command=self.go_airbike)
-        # Vertical alignment for timer card content
-        ab_box = BoxLayout(orientation='vertical', size_hint_x=1)
-        ab_box.add_widget(Label(text="AIR BIKE TIMER", font_size=dp(18), bold=True, color=get_color_from_hex(C_TEXT), halign='left', valign='middle', text_size=(Window.width*0.8, None)))
-        ab_box.add_widget(Label(text="20 Min Interval Routine", font_size=dp(14), color=get_color_from_hex(C_SUB), halign='left', valign='middle', text_size=(Window.width*0.8, None)))
-        btn_ab.add_widget(ab_box)
-        self.list_layout.add_widget(btn_ab)
-        
-        btn_lp = SmartCard(command=self.go_loop)
-        lp_box = BoxLayout(orientation='vertical', size_hint_x=1)
-        lp_box.add_widget(Label(text="LOOP TIMER", font_size=dp(18), bold=True, color=get_color_from_hex(C_TEXT), halign='left', valign='middle', text_size=(Window.width*0.8, None)))
-        lp_box.add_widget(Label(text="Custom Interval (Default 30s/2s)", font_size=dp(14), color=get_color_from_hex(C_SUB), halign='left', valign='middle', text_size=(Window.width*0.8, None)))
-        btn_lp.add_widget(lp_box)
-        self.list_layout.add_widget(btn_lp)
-            
-        self.scroll.add_widget(self.list_layout)
-        self.layout.add_widget(self.scroll)
-        self.add_widget(self.layout)
-
-    def on_pre_enter(self):
-        self.lbl_week.text = f"WEEK {user_profile['current_week']}"
-
-    def next_week(self, instance):
-        if user_profile['current_week'] < 6: user_profile['current_week'] += 1
-        else: user_profile['current_week'] = 1
-        save_data()
-        self.lbl_week.text = f"WEEK {user_profile['current_week']}"
-
-    def prev_week(self, instance):
-        if user_profile['current_week'] > 1: user_profile['current_week'] -= 1
-        else: user_profile['current_week'] = 6
-        save_data()
-        self.lbl_week.text = f"WEEK {user_profile['current_week']}"
-
-    def go_day(self, day):
-        self.manager.get_screen('day').load_day(day)
-        self.manager.transition = SlideTransition(direction='left')
-        self.manager.current = 'day'
-
-    def go_edit(self, instance):
-        self.manager.transition = SlideTransition(direction='up')
-        self.manager.current = 'edit'
-        
-    def go_airbike(self, instance):
-        self.manager.transition = SlideTransition(direction='left')
-        self.manager.current = 'airbike'
-        
-    def go_loop(self, instance):
-        self.manager.transition = SlideTransition(direction='left')
-        self.manager.current = 'loop30'
+        btn_edit = NeoButton(text="PRO", size_hint_x=None, width=dp(60), background_color_hex=C_BG_SEC)
+        btn_edit.bind(on_release=lambda x: setattr(self.manager, 'current', 'edit'))
+        header.add_widget(btn_prev); header.add_widget(self.lbl_week); header.add_widget(btn_next); header.add_widget(btn_edit)
+        self.layout.add_widget(header)
+        scroll = ScrollView(); list_l = GridLayout(cols=1, spacing=dp(15), size_hint_y=None, padding=dp(15))
+        list_l.bind(minimum_height=list_l.setter('height'))
+        for d in ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]:
+            card = NeoCard(command=lambda day=d: self.go_day(day))
+            card.add_widget(Label(text=d.upper(), font_size=dp(18), bold=True, halign='left', size_hint_x=0.8))
+            card.add_widget(Label(text="→", font_size=dp(24), color=get_color_from_hex(C_PRIMARY), size_hint_x=0.2))
+            list_l.add_widget(card)
+        list_l.add_widget(SectionHeader(text="UTILITIES"))
+        btn_ab = NeoCard(command=lambda: setattr(self.manager, 'current', 'airbike'), bg_color=get_color_from_hex("#1A2226"))
+        btn_ab.add_widget(Label(text="AIR BIKE TIMER", bold=True)); list_l.add_widget(btn_ab)
+        btn_lp = NeoCard(command=lambda: setattr(self.manager, 'current', 'loop30'), bg_color=get_color_from_hex("#1A2226"))
+        btn_lp.add_widget(Label(text="LOOP TIMER", bold=True)); list_l.add_widget(btn_lp)
+        scroll.add_widget(list_l); self.layout.add_widget(scroll); self.add_widget(self.layout)
+    def on_pre_enter(self): self.lbl_week.text = f"WEEK {user_profile['current_week']}"
+    def next_week(self, *a): user_profile['current_week'] = (user_profile['current_week'] % 6) + 1; save_data(); self.on_pre_enter()
+    def prev_week(self, *a): user_profile['current_week'] = 6 if user_profile['current_week'] == 1 else user_profile['current_week']-1; save_data(); self.on_pre_enter()
+    def go_day(self, d): self.manager.get_screen('day').load_day(d); self.manager.transition.direction='left'; self.manager.current='day'
 
 class DayScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
-        header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10))
-        btn_back = Button(text="< BACK", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_back.bind(on_release=self.go_back)
-        self.lbl_title = Label(text="DAY", font_size=dp(20), bold=True)
-        header.add_widget(btn_back)
-        header.add_widget(self.lbl_title)
+        with self.canvas.before:
+            Color(*get_color_from_hex(C_BG_MAIN)); Rectangle(pos=self.pos, size=self.size)
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+        btn_back = NeoButton(text="< BACK", size_hint_x=None, width=dp(80)); btn_back.bind(on_release=lambda x: setattr(self.manager, 'current', 'home'))
+        self.lbl_title = Label(text="DAY", font_size=dp(24), bold=True); header.add_widget(btn_back); header.add_widget(self.lbl_title)
         self.layout.add_widget(header)
-        self.scroll = TouchScroll()
-        self.content = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(10))
+        self.scroll = ScrollView(); self.content = GridLayout(cols=1, spacing=dp(12), size_hint_y=None, padding=dp(15))
         self.content.bind(minimum_height=self.content.setter('height'))
-        self.scroll.add_widget(self.content)
-        self.layout.add_widget(self.scroll)
-        self.add_widget(self.layout)
-
+        self.scroll.add_widget(self.content); self.layout.add_widget(self.scroll); self.add_widget(self.layout)
     def load_day(self, day):
-        self.lbl_title.text = day.upper()
-        self.content.clear_widgets()
-        workout = get_workout(day)
-        for line in workout:
-            if line.isupper() and " " not in line: 
+        self.lbl_title.text = day.upper(); self.content.clear_widgets()
+        for line in get_workout(day):
+            if any(x in line for x in ["WARMUP", "SUPERSET", "COOL", "COMBAT", "FINISHER", "CIRCUIT", "CARDIO", "MORNING"]):
                 self.content.add_widget(SectionHeader(text=line))
-            elif any(x in line for x in ["WARMUP", "SUPERSET", "COOL", "COMBAT", "FINISHER", "CIRCUIT", "CARDIO", "ACCESSORY"]):
-                 self.content.add_widget(SectionHeader(text=line))
             else:
-                # Workout Item Row
-                ex_key = None
-                for k in exercise_db:
-                    if k in line: ex_key = k
-                
-                # If timer is needed
-                duration = parse_duration(line)
-                
-                # Card Container
-                # If we have a timer, the card logic needs to be careful not to overlap the button
-                # So we make the card just a layout, and add a button for details and a button for timer
-                
-                card_layout = BoxLayout(orientation='horizontal', size_hint_y=None, height=dp(80), spacing=dp(5))
-                
-                # Main Details Area (Clickable)
-                details_btn = Button(
-                    text=line,
-                    background_normal='',
-                    background_color=get_color_from_hex(C_CARD) if ex_key else get_color_from_hex(C_BG),
-                    color=get_color_from_hex(C_TEXT if ex_key else C_SUB),
-                    halign='left',
-                    valign='middle',
-                    text_size=(Window.width - (dp(100) if duration else dp(40)), None) # Adjust text width based on if timer exists
-                )
-                
-                if ex_key:
-                    details_btn.bind(on_release=lambda x, k=ex_key, l=line: self.go_detail(k, l))
-                
-                card_layout.add_widget(details_btn)
-
-                # Timer Button (Purple)
-                if duration:
-                    t_btn = Button(
-                        text="TIMER", 
-                        size_hint_x=None, 
-                        width=dp(70), 
-                        background_normal='', 
-                        background_color=get_color_from_hex(C_PRIMARY), 
-                        bold=True
-                    )
-                    if duration == "AIRBIKE":
-                        t_btn.bind(on_release=lambda x: self.go_airbike())
-                    else:
-                        t_btn.bind(on_release=lambda x, t=duration: self.go_simple_timer(t))
-                    card_layout.add_widget(t_btn)
-
-                self.content.add_widget(card_layout)
-
-    def go_detail(self, key, line):
-        if key == "Air Bike Protocol":
-            self.manager.transition = SlideTransition(direction='left')
-            self.manager.current = 'airbike'
-        else:
-            self.manager.get_screen('detail').load_ex(key, line)
-            self.manager.transition = SlideTransition(direction='left')
-            self.manager.current = 'detail'
-
-    def go_simple_timer(self, seconds):
-        self.manager.get_screen('simple_timer').set_time(seconds)
-        self.manager.transition = SlideTransition(direction='left')
-        self.manager.current = 'simple_timer'
-
-    def go_airbike(self):
-        self.manager.transition = SlideTransition(direction='left')
-        self.manager.current = 'airbike'
-
-    def go_back(self, instance):
-        self.manager.transition = SlideTransition(direction='right')
-        self.manager.current = 'home'
+                ex_key = next((k for k in exercise_db if k in line), None)
+                dur = parse_duration(line)
+                card = NeoCard(command=(lambda x=ex_key, l=line: self.go_detail(x, l)) if ex_key else None)
+                card.add_widget(Label(text=line, font_size=dp(14), halign='left', text_size=(Window.width-dp(120), None)))
+                if dur:
+                    t_btn = NeoButton(text="TIME", size_hint_x=None, width=dp(60), background_color_hex=C_PRIMARY, color_hex="#000000")
+                    if dur == "AIRBIKE": t_btn.bind(on_release=lambda x: setattr(self.manager, 'current', 'airbike'))
+                    elif dur == "SIDEPLANK": t_btn.bind(on_release=lambda x: self.go_timer(60, "SIDEPLANK"))
+                    else: t_btn.bind(on_release=lambda x, t=dur: self.go_timer(t))
+                    card.add_widget(t_btn)
+                self.content.add_widget(card)
+    def go_detail(self, k, l): self.manager.get_screen('detail').load_ex(k, l); self.manager.current='detail'
+    def go_timer(self, s, m="SIMPLE"): self.manager.get_screen('simple_timer').set_time(s, m); self.manager.current='simple_timer'
 
 class DetailScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
-        header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10))
-        btn_back = Button(text="< BACK", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_back.bind(on_release=self.go_back)
-        self.lbl_title = Label(text="DETAILS", font_size=dp(20), bold=True)
-        header.add_widget(btn_back)
-        header.add_widget(self.lbl_title)
+        with self.canvas.before:
+            Color(*get_color_from_hex(C_BG_MAIN)); Rectangle(pos=self.pos, size=self.size)
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+        btn_back = NeoButton(text="< BACK", size_hint_x=None, width=dp(80)); btn_back.bind(on_release=lambda x: setattr(self.manager, 'current', 'day'))
+        self.lbl_title = Label(text="TECHNIQUE", bold=True); header.add_widget(btn_back); header.add_widget(self.lbl_title)
         self.layout.add_widget(header)
-        self.scroll = TouchScroll()
-        self.content = GridLayout(cols=1, spacing=dp(15), size_hint_y=None, padding=dp(20))
-        self.content.bind(minimum_height=self.content.setter('height'))
-        self.lbl_assign = Label(text="", markup=True, size_hint_y=None, text_size=(Window.width-dp(40), None), color=get_color_from_hex(C_PRIMARY))
-        self.lbl_desc = Label(text="", markup=True, size_hint_y=None, text_size=(Window.width-dp(40), None))
-        self.lbl_cue = Label(text="", markup=True, size_hint_y=None, text_size=(Window.width-dp(40), None), color=get_color_from_hex(C_ALERT))
-        self.content.add_widget(SectionHeader(text="ASSIGNMENT"))
-        self.content.add_widget(self.lbl_assign)
-        self.content.add_widget(SectionHeader(text="TECHNIQUE"))
-        self.content.add_widget(self.lbl_desc)
-        self.content.add_widget(SectionHeader(text="MEDICAL CUE"))
-        self.content.add_widget(self.lbl_cue)
-        self.scroll.add_widget(self.content)
-        self.layout.add_widget(self.scroll)
-        self.add_widget(self.layout)
-
-    def load_ex(self, key, line):
-        data = exercise_db.get(key)
-        self.lbl_assign.text = f"[b]{line}[/b]"
-        self.lbl_assign.texture_update()
-        self.lbl_assign.height = self.lbl_assign.texture_size[1] + dp(10)
-        self.lbl_desc.text = data['desc']
-        self.lbl_desc.texture_update()
-        self.lbl_desc.height = self.lbl_desc.texture_size[1] + dp(10)
-        self.lbl_cue.text = data['cue']
-        self.lbl_cue.texture_update()
-        self.lbl_cue.height = self.lbl_cue.texture_size[1] + dp(10)
-
-    def go_back(self, instance):
-        self.manager.transition = SlideTransition(direction='right')
-        self.manager.current = 'day'
+        scroll = ScrollView(); content = GridLayout(cols=1, spacing=dp(20), size_hint_y=None, padding=dp(20))
+        content.bind(minimum_height=content.setter('height'))
+        self.lbl_assign = Label(markup=True, size_hint_y=None, color=get_color_from_hex(C_PRIMARY))
+        self.lbl_desc = Label(markup=True, size_hint_y=None, color=get_color_from_hex(C_TEXT))
+        self.lbl_cue = Label(markup=True, size_hint_y=None, color=get_color_from_hex(C_ALERT))
+        content.add_widget(SectionHeader(text="ASSIGNMENT")); content.add_widget(self.lbl_assign)
+        content.add_widget(SectionHeader(text="EXECUTION")); content.add_widget(self.lbl_desc)
+        content.add_widget(SectionHeader(text="CUE")); content.add_widget(self.lbl_cue)
+        scroll.add_widget(content); self.layout.add_widget(scroll); self.add_widget(self.layout)
+    def load_ex(self, k, l):
+        d = exercise_db.get(k)
+        self.lbl_assign.text = f"[b]{l}[/b]"; self.lbl_assign.text_size=(Window.width-dp(40), None); self.lbl_assign.texture_update(); self.lbl_assign.height=self.lbl_assign.texture_size[1]+dp(10)
+        self.lbl_desc.text = d['desc']; self.lbl_desc.text_size=(Window.width-dp(40), None); self.lbl_desc.texture_update(); self.lbl_desc.height=self.lbl_desc.texture_size[1]+dp(10)
+        self.lbl_cue.text = f"[b]CUE:[/b] {d['cue']}"; self.lbl_cue.text_size=(Window.width-dp(40), None); self.lbl_cue.texture_update(); self.lbl_cue.height=self.lbl_cue.texture_size[1]+dp(10)
 
 class SimpleTimerScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
         with self.layout.canvas.before:
-            self.bg_color = Color(*COLOR_MENU)
-            self.rect = Rectangle(size=(5000, 5000), pos=(0, 0))
-        self.layout.bind(size=self._update_rect, pos=self._update_rect)
-        header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10))
-        btn_back = Button(text="< BACK", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_back.bind(on_release=self.go_back)
-        self.lbl_status = Label(text="TIMER", font_size=dp(20), bold=True)
-        header.add_widget(btn_back)
-        header.add_widget(self.lbl_status)
+            self.bg_color = Color(*get_color_from_hex(C_CARD)); self.rect = Rectangle(size=(5000, 5000), pos=(0, 0))
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+        btn_back = NeoButton(text="< BACK", size_hint_x=None, width=dp(80)); btn_back.bind(on_release=lambda x: self.stop_go_back())
+        self.lbl_status = Label(text="TIMER", bold=True); header.add_widget(btn_back); header.add_widget(self.lbl_status)
         self.layout.add_widget(header)
         self.lbl_timer = Label(text="00:00", font_size=dp(100), bold=True)
         self.layout.add_widget(self.lbl_timer)
-        controls = BoxLayout(size_hint_y=None, height=dp(100), padding=dp(20), spacing=dp(20))
-        self.btn_main = Button(text="START", background_normal='', background_color=COLOR_SPRINT, font_size=dp(24), bold=True)
-        self.btn_main.bind(on_release=self.toggle)
-        btn_reset = Button(text="RESET", background_normal='', background_color=COLOR_BTN_BLUE)
-        btn_reset.bind(on_release=self.reset)
-        controls.add_widget(self.btn_main)
-        controls.add_widget(btn_reset)
-        self.layout.add_widget(controls)
-        self.add_widget(self.layout)
-        self.total_time = 0
-        self.current_time = 0
-        self.running = False
-        self.event = None
-
-    def _update_rect(self, instance, value):
-        self.rect.pos = instance.pos
-        self.rect.size = instance.size
-
-    def set_time(self, seconds):
-        self.total_time = seconds
-        self.reset(None)
-
-    def toggle(self, instance):
-        if self.running:
-            self.running = False
-            if self.event: self.event.cancel()
-            self.btn_main.text = "RESUME"
-            self.btn_main.background_color = COLOR_SPRINT
-        else:
-            self.running = True
-            self.btn_main.text = "PAUSE"
-            self.btn_main.background_color = COLOR_REST
-            self.event = Clock.schedule_interval(self.update, 1)
-
-    def reset(self, instance):
-        self.running = False
+        controls = BoxLayout(size_hint_y=None, height=dp(120), padding=dp(20), spacing=dp(20))
+        self.btn_main = NeoButton(text="START", background_color_hex=COLOR_SPRINT_HEX, color_hex="#000000")
+        self.btn_main.bind(on_release=self.toggle); controls.add_widget(self.btn_main)
+        self.layout.add_widget(controls); self.add_widget(self.layout)
+        self.total = 0; self.curr = 0; self.running = False; self.event = None; self.mode = "SIMPLE"; self.phase = 0
+    def set_time(self, s, m="SIMPLE"):
+        self.total = s; self.mode = m; self.curr = s; self.running = False; self.phase = 0
         if self.event: self.event.cancel()
-        self.current_time = self.total_time
-        self.update_display()
-        self.btn_main.text = "START"
-        self.btn_main.background_color = COLOR_SPRINT
-        self.bg_color.rgba = COLOR_MENU
-
+        self.lbl_status.text = "SIDE 1 (L)" if m == "SIDEPLANK" else "TIMER"; self.update_display()
+    def toggle(self, *a):
+        if self.running: self.running = False; self.btn_main.text = "RESUME"; self.event.cancel()
+        else: self.running = True; self.btn_main.text = "PAUSE"; self.event = Clock.schedule_interval(self.update, 1)
     def update(self, dt):
-        self.current_time -= 1
-        if self.current_time <= 0:
-            self.current_time = 0
-            self.running = False
-            if self.event: self.event.cancel()
-            if audio_manager: audio_manager.play('beep')
-            self.bg_color.rgba = COLOR_DONE
-            self.btn_main.text = "DONE"
+        self.curr -= 1
+        if self.curr <= 0:
+            if self.mode == "SIDEPLANK" and self.phase == 0:
+                self.phase = 1; self.curr = 10; self.lbl_status.text = "BREAK"
+                if audio_manager: audio_manager.play('buzzer')
+            elif self.mode == "SIDEPLANK" and self.phase == 1:
+                self.phase = 2; self.curr = self.total; self.lbl_status.text = "SIDE 2 (R)"
+                if audio_manager: audio_manager.play('beep')
+            else:
+                self.running = False; self.event.cancel(); self.lbl_status.text = "DONE"
+                if audio_manager: audio_manager.play('beep')
         self.update_display()
-
-    def update_display(self):
-        m, s = divmod(self.current_time, 60)
-        self.lbl_timer.text = f"{m:02d}:{s:02d}"
-
-    def go_back(self, instance):
+    def update_display(self): m, s = divmod(self.curr, 60); self.lbl_timer.text = f"{m:02d}:{s:02d}"
+    def stop_go_back(self):
         if self.event: self.event.cancel()
-        self.manager.transition = SlideTransition(direction='right')
         self.manager.current = 'day'
-
-class EditScreen(Screen):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.layout = BoxLayout(orientation='vertical')
-        header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10))
-        btn_cancel = Button(text="CANCEL", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_cancel.bind(on_release=self.go_back)
-        btn_save = Button(text="SAVE", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_PRIMARY))
-        btn_save.bind(on_release=self.save)
-        header.add_widget(btn_cancel)
-        header.add_widget(Label(text="PROFILE", bold=True))
-        header.add_widget(btn_save)
-        self.layout.add_widget(header)
-        self.scroll = TouchScroll()
-        self.content = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(20))
-        self.content.bind(minimum_height=self.content.setter('height'))
-        self.content.add_widget(SectionHeader(text="CURRENT WEEK"))
-        self.in_week = TextInput(text=str(user_profile['current_week']), multiline=False, size_hint_y=None, height=dp(40))
-        self.content.add_widget(self.in_week)
-        self.content.add_widget(SectionHeader(text="1RM INPUTS (LBS)"))
-        self.inputs = {}
-        for k, v in user_profile['maxes'].items():
-            box = BoxLayout(orientation='vertical', size_hint_y=None, height=dp(70))
-            box.add_widget(Label(text=k, color=get_color_from_hex(C_SUB), size_hint_y=None, height=dp(20), halign='left', text_size=(Window.width-dp(40), None)))
-            inp = TextInput(text=str(v), multiline=False, size_hint_y=None, height=dp(40))
-            box.add_widget(inp)
-            self.content.add_widget(box)
-            self.inputs[k] = inp
-        self.scroll.add_widget(self.content)
-        self.layout.add_widget(self.scroll)
-        self.add_widget(self.layout)
-
-    def save(self, instance):
-        try:
-            user_profile['current_week'] = int(self.in_week.text)
-            for k, inp in self.inputs.items():
-                user_profile['maxes'][k] = float(inp.text)
-            save_data()
-            self.go_back(None)
-        except: pass
-
-    def go_back(self, instance):
-        self.manager.transition = SlideTransition(direction='down')
-        self.manager.current = 'home'
 
 class AirBikeScreen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
         with self.layout.canvas.before:
-            self.bg_color = Color(*COLOR_MENU)
-            self.rect = Rectangle(size=(5000, 5000), pos=(0, 0))
-        self.layout.bind(size=self._update_rect, pos=self._update_rect)
-        header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10))
-        btn_back = Button(text="< BACK", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_back.bind(on_release=self.go_back)
-        self.lbl_status = Label(text="AIR BIKE WORKOUT", font_size=dp(20), bold=True)
-        header.add_widget(btn_back)
-        header.add_widget(self.lbl_status)
-        self.layout.add_widget(header)
-        content = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(10))
+            self.bg_color = Color(*get_color_from_hex(C_CARD)); self.rect = Rectangle(size=(5000, 5000), pos=(0, 0))
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+        btn_back = NeoButton(text="<", size_hint_x=None, width=dp(50)); btn_back.bind(on_release=lambda x: self.stop_go_back())
+        header.add_widget(btn_back); header.add_widget(Label(text="AIR BIKE", bold=True)); self.layout.add_widget(header)
+        self.lbl_info = Label(text="READY?", font_size=dp(20), color=get_color_from_hex(C_PRIMARY))
         self.lbl_timer = Label(text="20:00", font_size=dp(80), bold=True)
-        self.lbl_info = Label(text="Tap Start", font_size=dp(20))
-        self.lbl_step = Label(text="", font_size=dp(16), color=get_color_from_hex(C_SEC))
-        content.add_widget(self.lbl_info)
-        content.add_widget(self.lbl_step)
-        content.add_widget(self.lbl_timer)
-        self.layout.add_widget(content)
-        controls = BoxLayout(size_hint_y=None, height=dp(80), padding=dp(10), spacing=dp(10))
-        btn_prev = Button(text="PREV", background_normal='', background_color=COLOR_BTN_BLUE)
-        btn_prev.bind(on_release=self.go_prev)
-        self.btn_main = Button(text="START", background_normal='', background_color=COLOR_SPRINT, font_size=dp(20), bold=True)
-        self.btn_main.bind(on_release=self.toggle_timer)
-        btn_next = Button(text="SKIP", background_normal='', background_color=COLOR_BTN_BLUE)
-        btn_next.bind(on_release=self.go_next)
-        controls.add_widget(btn_prev)
-        controls.add_widget(self.btn_main)
-        controls.add_widget(btn_next)
-        self.layout.add_widget(controls)
-        self.add_widget(self.layout)
-        self.routine = self._build_routine()
-        self.current_step_index = 0
-        self.time_remaining = 0
-        self.timer_event = None
-
-    def _update_rect(self, instance, value):
-        self.rect.pos = instance.pos
-        self.rect.size = instance.size
-
-    def _build_routine(self):
-        r = []
-        r.append(("READY", 5, "GET READY"))
-        r.append(("WARMUP", 150, "WARM UP: BUILD (50-60%)"))
-        r.append(("SPRINT", 5, "SPRINT: 80-90% EFFORT"))
-        r.append(("WARMUP", 25, "WARM UP: 60% EFFORT"))
-        r.append(("SPRINT", 5, "SPRINT: 80-90% EFFORT"))
-        r.append(("WARMUP", 25, "WARM UP: 60% EFFORT"))
-        r.append(("SPRINT", 5, "SPRINT: 80-90% EFFORT"))
-        r.append(("WARMUP", 25, "WARM UP: 60% EFFORT"))
-        r.append(("WORK", 90, "PHASE 1: 70% THRESHOLD")) 
-        r.append(("SPRINT", 15, "PHASE 1: 90% SPRINT")) 
-        r.append(("WORK", 75, "PHASE 1: 70% THRESHOLD")) 
-        r.append(("SPRINT", 15, "ARMS ONLY: MAX EFFORT")) 
-        r.append(("WORK", 45, "HEAVY RESISTANCE GRIND"))
-        r.append(("SPRINT", 15, "ARMS ONLY: MAX EFFORT")) 
-        r.append(("WORK", 45, "HEAVY RESISTANCE GRIND"))
-        for i in range(1, 5):
-            r.append(("SPRINT", 20, f"PHASE 3: SPRINT {i}/4"))
-            r.append(("WARMUP", 10, f"PHASE 3: CRUISE {i}/4"))
-        r.append(("REST", 120, "RECOVERY: 40%"))
-        for i in range(1, 5):
-            r.append(("SPRINT", 20, f"INTERVAL {i}/4 MAX"))
-            r.append(("REST", 40, f"INTERVAL {i}/4 REST"))
-        r.append(("WARMUP", 180, "COOLDOWN: LIGHT FLUSH"))
-        r.append(("DONE", 0, "WORKOUT COMPLETE"))
+        self.layout.add_widget(self.lbl_info); self.layout.add_widget(self.lbl_timer)
+        controls = BoxLayout(size_hint_y=None, height=dp(100), padding=dp(20), spacing=dp(20))
+        self.btn_main = NeoButton(text="START", background_color_hex=COLOR_SPRINT_HEX, color_hex="#000000")
+        self.btn_main.bind(on_release=self.toggle); controls.add_widget(self.btn_main)
+        self.layout.add_widget(controls); self.add_widget(self.layout)
+        self.routine = self._build(); self.idx = 0; self.curr = 0; self.event = None
+    def _build(self):
+        r = [("READY", 5, "GET READY"), ("WARMUP", 150, "WARM UP: BUILD (50-60%)"), ("SPRINT", 5, "SPRINT: 80-90%")]
+        r += [("WARMUP", 25, "WARM UP"), ("SPRINT", 5, "SPRINT"), ("WARMUP", 25, "WARM UP"), ("SPRINT", 5, "SPRINT"), ("WARMUP", 25, "WARM UP")]
+        r += [("WORK", 90, "PHASE 1: 70% THRESHOLD"), ("SPRINT", 15, "PHASE 1: 90% SPRINT"), ("WORK", 75, "PHASE 1: 70%")]
+        r += [("SPRINT", 15, "ARMS ONLY"), ("WORK", 45, "HEAVY GRIND"), ("SPRINT", 15, "ARMS ONLY"), ("WORK", 45, "HEAVY GRIND")]
+        for i in range(1, 5): r += [("SPRINT", 20, f"PHASE 3: SPRINT {i}/4"), ("WARMUP", 10, f"PHASE 3: CRUISE")]
+        r += [("REST", 120, "RECOVERY: 40%")]
+        for i in range(1, 5): r += [("SPRINT", 20, f"INTERVAL {i}/4 MAX"), ("REST", 40, f"REST")]
+        r += [("WARMUP", 180, "COOLDOWN: LIGHT FLUSH"), ("DONE", 0, "COMPLETE")]
         return r
-
-    def go_back(self, instance):
-        if self.timer_event: self.timer_event.cancel()
-        self.manager.transition = SlideTransition(direction='right')
-        # We need to know where we came from, but for now home/day
-        self.manager.current = 'home'
-
-    def toggle_timer(self, instance):
-        if self.timer_event:
-            self.timer_event.cancel()
-            self.timer_event = None
-            self.btn_main.text = "RESUME"
-            self.btn_main.background_color = COLOR_SPRINT
+    def toggle(self, *a):
+        if self.event: self.event.cancel(); self.event=None; self.btn_main.text="RESUME"
         else:
-            self.btn_main.text = "STOP"
-            self.btn_main.background_color = COLOR_REST
-            if self.current_step_index == 0 and self.time_remaining == 0:
-                self.load_step()
-            self.timer_event = Clock.schedule_interval(self.update_timer, 1)
-
+            self.btn_main.text="STOP"
+            if self.curr == 0: self.load_step()
+            self.event = Clock.schedule_interval(self.update, 1)
     def load_step(self):
-        step_type, duration, info = self.routine[self.current_step_index]
-        self.time_remaining = duration
-        self.lbl_info.text = info
-        self.lbl_step.text = f"STEP {self.current_step_index+1}/{len(self.routine)}"
-        
-        c = COLOR_MENU
-        if step_type == "SPRINT": c = COLOR_SPRINT
-        elif step_type == "REST": c = COLOR_REST
-        elif step_type == "DONE": c = COLOR_DONE
-        self.bg_color.rgba = c
-        self.update_label()
-
-    def update_timer(self, dt):
-        self.time_remaining -= 1
-        if self.time_remaining < 0:
-            self.go_next(None)
-        else:
-            self.update_label()
-
-    def update_label(self):
-        m, s = divmod(self.time_remaining, 60)
-        self.lbl_timer.text = f"{m:02d}:{s:02d}"
-
-    def go_next(self, instance):
-        if self.current_step_index < len(self.routine)-1:
-            self.current_step_index += 1
-            if audio_manager: audio_manager.play('beep')
-            self.load_step()
-
-    def go_prev(self, instance):
-        if self.current_step_index > 0:
-            self.current_step_index -= 1
-            self.load_step()
+        t, d, i = self.routine[self.idx]; self.curr = d; self.lbl_info.text = i; self.update_display()
+    def update(self, dt):
+        self.curr -= 1
+        if self.curr < 0:
+            self.idx += 1
+            if self.idx < len(self.routine):
+                self.load_step()
+                if audio_manager: audio_manager.play('beep')
+            else: self.event.cancel(); self.lbl_info.text="DONE"
+        self.update_display()
+    def update_display(self): m, s = divmod(self.curr, 60); self.lbl_timer.text = f"{m:02d}:{s:02d}"
+    def stop_go_back(self):
+        if self.event: self.event.cancel()
+        self.manager.current = 'home'
 
 class Loop30Screen(Screen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.layout = BoxLayout(orientation='vertical')
-        
         with self.layout.canvas.before:
-            self.bg_color = Color(*COLOR_MENU)
-            self.rect = Rectangle(size=(5000, 5000), pos=(0, 0))
-        self.layout.bind(size=self._update_rect, pos=self._update_rect)
-
-        header = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10))
-        btn_back = Button(text="< MENU", size_hint_x=None, width=dp(80), background_normal='', background_color=get_color_from_hex(C_CARD))
-        btn_back.bind(on_release=self.go_back)
-        self.lbl_status = Label(text="LOOP TIMER", font_size=dp(20), bold=True)
-        header.add_widget(btn_back)
-        header.add_widget(self.lbl_status)
+            self.bg_color = Color(*get_color_from_hex(C_CARD)); self.rect = Rectangle(size=(5000, 5000), pos=(0, 0))
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+        btn_back = NeoButton(text="< BACK", size_hint_x=None, width=dp(80)); btn_back.bind(on_release=lambda x: self.stop_go_back())
+        self.lbl_title = Label(text="LOOP TIMER", bold=True); header.add_widget(btn_back); header.add_widget(self.lbl_title)
         self.layout.add_widget(header)
-
         inputs = BoxLayout(size_hint_y=None, height=dp(60), padding=dp(10), spacing=dp(20))
-        self.in_work = TextInput(text="30", multiline=False, input_filter='int')
-        self.in_rest = TextInput(text="2", multiline=False, input_filter='int')
-        inputs.add_widget(Label(text="Work (s):"))
-        inputs.add_widget(self.in_work)
-        inputs.add_widget(Label(text="Rest (s):"))
-        inputs.add_widget(self.in_rest)
+        self.in_work = TextInput(text="30", multiline=False, input_filter='int', background_color=(0,0,0,1), foreground_color=(1,1,1,1))
+        self.in_rest = TextInput(text="2", multiline=False, input_filter='int', background_color=(0,0,0,1), foreground_color=(1,1,1,1))
+        inputs.add_widget(Label(text="W:")); inputs.add_widget(self.in_work); inputs.add_widget(Label(text="R:")); inputs.add_widget(self.in_rest)
         self.layout.add_widget(inputs)
-
-        self.lbl_timer = Label(text="00:30", font_size=dp(80), bold=True)
-        self.lbl_set = Label(text="SET: 1", font_size=dp(24), color=get_color_from_hex(C_SEC))
-        self.layout.add_widget(self.lbl_set)
-        self.layout.add_widget(self.lbl_timer)
-
-        controls = BoxLayout(size_hint_y=None, height=dp(80), padding=dp(10), spacing=dp(10))
-        self.btn_main = Button(text="START", background_normal='', background_color=COLOR_SPRINT, font_size=dp(20), bold=True)
-        self.btn_main.bind(on_release=self.toggle)
-        btn_skip = Button(text="SKIP", background_normal='', background_color=COLOR_BTN_BLUE)
-        btn_skip.bind(on_release=self.skip)
-        
-        controls.add_widget(self.btn_main)
-        controls.add_widget(btn_skip)
-        self.layout.add_widget(controls)
-        
-        self.add_widget(self.layout)
-        self.running = False
-        self.phase = "WORK"
-        self.time = 30
-        self.event = None
-        self.sets = 1
-
-    def _update_rect(self, instance, value):
-        self.rect.pos = instance.pos
-        self.rect.size = instance.size
-
-    def go_back(self, instance):
-        if self.event: self.event.cancel()
-        self.manager.transition = SlideTransition(direction='right')
-        self.manager.current = 'home'
-
-    def toggle(self, instance):
-        if self.running:
-            self.running = False
-            if self.event: self.event.cancel()
-            self.btn_main.text = "RESUME"
-            self.btn_main.background_color = COLOR_SPRINT
-        else:
-            self.running = True
-            self.btn_main.text = "STOP"
-            self.btn_main.background_color = COLOR_REST
-            self.event = Clock.schedule_interval(self.update, 1)
-
-    def skip(self, instance):
-        self.time = 0
-        self.update(0)
-
+        self.lbl_timer = Label(text="00:30", font_size=dp(80), bold=True); self.layout.add_widget(self.lbl_timer)
+        controls = BoxLayout(size_hint_y=None, height=dp(100), padding=dp(20))
+        self.btn_main = NeoButton(text="START", background_color_hex=COLOR_SPRINT_HEX, color_hex="#000000")
+        self.btn_main.bind(on_release=self.toggle); controls.add_widget(self.btn_main)
+        self.layout.add_widget(controls); self.add_widget(self.layout)
+        self.curr = 30; self.running = False; self.event = None; self.phase = "WORK"
+    def toggle(self, *a):
+        if self.running: self.running = False; self.event.cancel(); self.btn_main.text = "RESUME"
+        else: self.running = True; self.btn_main.text = "STOP"; self.event = Clock.schedule_interval(self.update, 1)
     def update(self, dt):
-        self.time -= 1
-        if self.time < 0:
+        self.curr -= 1
+        if self.curr < 0:
             if self.phase == "WORK":
                 self.phase = "REST"
-                self.time = int(self.in_rest.text)
-                self.bg_color.rgba = COLOR_REST
-                self.lbl_status.text = "REST"
+                self.curr = int(self.in_rest.text)
                 if audio_manager: audio_manager.play('buzzer')
             else:
                 self.phase = "WORK"
-                self.time = int(self.in_work.text)
-                self.bg_color.rgba = COLOR_SPRINT
-                self.lbl_status.text = "WORK"
-                self.sets += 1
-                self.lbl_set.text = f"SET: {self.sets}"
+                self.curr = int(self.in_work.text)
                 if audio_manager: audio_manager.play('beep')
-        
-        m, s = divmod(self.time, 60)
-        self.lbl_timer.text = f"{m:02d}:{s:02d}"
+        m, s = divmod(self.curr, 60); self.lbl_timer.text = f"{m:02d}:{s:02d}"
+    def stop_go_back(self):
+        if self.event: self.event.cancel()
+        self.manager.current = 'home'
 
-# ==========================================
-# APP BUILDER
-# ==========================================
+class EditScreen(Screen):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.layout = BoxLayout(orientation='vertical')
+        with self.canvas.before:
+            Color(*get_color_from_hex(C_BG_MAIN)); Rectangle(pos=self.pos, size=self.size)
+        header = BoxLayout(size_hint_y=None, height=dp(70), padding=dp(10))
+        btn_back = NeoButton(text="<", size_hint_x=None, width=dp(50)); btn_back.bind(on_release=lambda x: setattr(self.manager, 'current', 'home'))
+        btn_save = NeoButton(text="SAVE", background_color_hex=C_PRIMARY, color_hex="#000000")
+        btn_save.bind(on_release=self.save)
+        header.add_widget(btn_back); header.add_widget(Label(text="PROFILE")); header.add_widget(btn_save); self.layout.add_widget(header)
+        scroll = ScrollView(); content = GridLayout(cols=1, spacing=dp(10), size_hint_y=None, padding=dp(20))
+        content.bind(minimum_height=content.setter('height')); self.inputs = {}
+        content.add_widget(SectionHeader(text="WEEK")); self.in_w = TextInput(text=str(user_profile['current_week']), multiline=False, size_hint_y=None, height=dp(40))
+        content.add_widget(self.in_w)
+        for k, v in user_profile['maxes'].items():
+            content.add_widget(Label(text=k, color=get_color_from_hex(C_SUB), size_hint_y=None, height=dp(20), halign='left'))
+            inp = TextInput(text=str(v), multiline=False, size_hint_y=None, height=dp(40)); self.inputs[k] = inp; content.add_widget(inp)
+        scroll.add_widget(content); self.layout.add_widget(scroll); self.add_widget(self.layout)
+    def save(self, *a):
+        try:
+            user_profile['current_week'] = int(self.in_w.text)
+            for k, i in self.inputs.items(): user_profile['maxes'][k] = float(i.text)
+            save_data(); self.manager.current = 'home'
+        except: pass
+
 class RehabApp(App):
     def build(self):
-        global audio_manager
-        audio_manager = SoundManager()
-        Window.clearcolor = get_color_from_hex(C_BG)
-        load_data()
-        sm = SwipeManager()
-        sm.add_widget(HomeScreen(name='home'))
-        sm.add_widget(DayScreen(name='day'))
-        sm.add_widget(DetailScreen(name='detail'))
-        sm.add_widget(EditScreen(name='edit'))
-        sm.add_widget(AirBikeScreen(name='airbike'))
+        global audio_manager; audio_manager = SoundManager()
+        load_data(); sm = SwipeManager()
+        sm.add_widget(HomeScreen(name='home')); sm.add_widget(DayScreen(name='day'))
+        sm.add_widget(DetailScreen(name='detail')); sm.add_widget(EditScreen(name='edit'))
+        sm.add_widget(AirBikeScreen(name='airbike')); sm.add_widget(SimpleTimerScreen(name='simple_timer'))
         sm.add_widget(Loop30Screen(name='loop30'))
-        sm.add_widget(SimpleTimerScreen(name='simple_timer'))
         return sm
-        
-    def on_stop(self):
-        save_data()
-    
-    def on_start(self):
-        if platform == 'android':
-            try:
-                from jnius import autoclass
-                PythonActivity = autoclass('org.kivy.android.PythonActivity')
-                Activity = PythonActivity.mActivity
-                View = autoclass('android.view.View')
-                Activity.getWindow().addFlags(View.KEEP_SCREEN_ON)
-            except: pass
+    def on_stop(self): save_data()
 
 if __name__ == '__main__':
     RehabApp().run()
